@@ -1,5 +1,6 @@
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
+import path = require('path');
 import * as vscode from 'vscode';
 import { NodeDependenciesProvider, rootnode, Type } from './TreeDataProvider';
 
@@ -53,27 +54,37 @@ export function activate(context: vscode.ExtensionContext) {
     });
 
     const treeview = vscode.window.createTreeView('nodeDependencies', {
-        treeDataProvider: new NodeDependenciesProvider(rootnode)
+        treeDataProvider: new NodeDependenciesProvider(context.extensionUri, rootnode)
     });
     treeview.onDidChangeSelection(e => {
         if (e.selection.length == 1) {
             const item = e.selection[0];
             if (item.node.type == Type.FILE) {
-                vscode.window.showInformationMessage(item.node.id);
                 const id = item.node.id;
-                if (!(id in panels)) {
+                if (id in panels) {
+                    const p = panels[id];
+                    if (!p.visible) {
+                        p.reveal(vscode.ViewColumn.Active);
+                    }
+                } else {
                     const p = vscode.window.createWebviewPanel(
                         'njla',
                         id,
                         vscode.ViewColumn.Active,
                         {
                             enableScripts: true,
+                            retainContextWhenHidden: true,
+
                         }
                     );
                     p.onDidDispose(() => {
                         delete panels[id];
                     }, null, context.subscriptions);
                     p.webview.html = getWebviewContent();
+                    p.iconPath = {
+                        light: vscode.Uri.joinPath(context.extensionUri, "media", "elephant_light.svg"),
+                        dark: vscode.Uri.joinPath(context.extensionUri, "media", "elephant_dark.svg"),
+                    };
                     panels[id] = p;
                 }
             }

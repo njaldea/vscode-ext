@@ -62,7 +62,7 @@ export const rootnode: DirNode = {
 }
 
 export class NodeDependenciesProvider implements vscode.TreeDataProvider<Item> {
-    constructor(private root: DirNode) { }
+    constructor(private extensionUri: vscode.Uri, private root: DirNode) { }
 
     getTreeItem(element: Item): vscode.TreeItem {
         return element;
@@ -83,7 +83,7 @@ export class NodeDependenciesProvider implements vscode.TreeDataProvider<Item> {
     private populate(node: DirNode): Item[] {
         const subs: Item[] = [];
         for (const [key, subnode] of Object.entries(node.subnode)) {
-            subs.push(new Item(key, subnode));
+            subs.push(new Item(this.extensionUri, key, subnode));
         }
         return subs;
     }
@@ -91,6 +91,7 @@ export class NodeDependenciesProvider implements vscode.TreeDataProvider<Item> {
 
 class Item extends vscode.TreeItem {
     constructor(
+        extensionUri: vscode.Uri,
         public readonly label: string,
         public node: Node,
     ) {
@@ -102,8 +103,8 @@ class Item extends vscode.TreeItem {
             this.description = this.node.id;
 
             this.iconPath = {
-                light: path.join(path.dirname(__filename), '..', 'media', 'elephant.svg'),
-                dark: path.join(path.dirname(__filename), '..', 'media', 'elephant.svg'),
+                light: vscode.Uri.joinPath(extensionUri, 'media', 'elephant_light.svg'),
+                dark: vscode.Uri.joinPath(extensionUri, 'media', 'elephant_dark.svg'),
             };
         }
     }
