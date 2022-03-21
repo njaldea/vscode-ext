@@ -1,95 +1,110 @@
 import * as vscode from 'vscode';
-import * as fs from 'fs';
 import * as path from 'path';
 
-export class NodeDependenciesProvider implements vscode.TreeDataProvider<Dependency> {
-    constructor(private workspaceRoot: string) { }
+export enum Type {
+    DIR,
+    FILE
+};
 
-    getTreeItem(element: Dependency): vscode.TreeItem {
-        return element;
-    }
+type Node = FileNode | DirNode;
 
-    getChildren(element?: Dependency): Thenable<Dependency[]> {
-        if (!this.workspaceRoot) {
-            vscode.window.showInformationMessage('No dependency in empty workspace');
-            return Promise.resolve([]);
-        }
+interface FileNode {
+    type: Type.FILE;
+    id: string
+};
 
-        if (element) {
-            return Promise.resolve(
-                this.getDepsInPackageJson(
-                    path.join(this.workspaceRoot, 'node_modules', element.label, 'package.json')
-                )
-            );
-        } else {
-            const packageJsonPath = path.join(this.workspaceRoot, 'package.json');
-            if (this.pathExists(packageJsonPath)) {
-                return Promise.resolve(this.getDepsInPackageJson(packageJsonPath));
-            } else {
-                vscode.window.showInformationMessage('Workspace has no package.json');
-                return Promise.resolve([]);
+interface DirNode {
+    type: Type.DIR;
+    subnode: Record<string, Node>;
+}
+
+export const rootnode: DirNode = {
+    type: Type.DIR,
+    subnode: {
+        "dirA": {
+            type: Type.DIR,
+            subnode: {
+                "dirAa": {
+                    type: Type.DIR,
+                    subnode: {
+                        "fileAaF": {
+                            type: Type.FILE,
+                            id: "dirA.dirAa.fileAaF"
+                        }
+                    }
+                },
+                "fileAF": {
+                    type: Type.FILE,
+                    id: "dirA.fileAF"
+                }
+            }
+        },
+
+        "dirB": {
+            type: Type.DIR,
+            subnode: {
+                "dirBa": {
+                    type: Type.DIR,
+                    subnode: {
+                        "fileBaF": {
+                            type: Type.FILE,
+                            id: "dirB.dirBa.fileBaF"
+                        }
+                    }
+                },
+                "fileBF": {
+                    type: Type.FILE,
+                    id: "dirB.fileBF"
+                }
             }
         }
     }
+}
 
-    /**
-     * Given the path to package.json, read all its dependencies and devDependencies.
-     */
-    private getDepsInPackageJson(packageJsonPath: string): Dependency[] {
-        if (this.pathExists(packageJsonPath)) {
-            const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+export class NodeDependenciesProvider implements vscode.TreeDataProvider<Item> {
+    constructor(private root: DirNode) { }
 
-            const toDep = (moduleName: string, version: string): Dependency => {
-                if (this.pathExists(path.join(this.workspaceRoot, 'node_modules', moduleName))) {
-                    return new Dependency(
-                        moduleName,
-                        version,
-                        vscode.TreeItemCollapsibleState.Collapsed
-                    );
-                } else {
-                    return new Dependency(moduleName, version, vscode.TreeItemCollapsibleState.None);
-                }
-            };
+    getTreeItem(element: Item): vscode.TreeItem {
+        return element;
+    }
 
-            const deps = packageJson.dependencies
-                ? Object.keys(packageJson.dependencies).map(dep =>
-                    toDep(dep, packageJson.dependencies[dep])
-                )
-                : [];
-            const devDeps = packageJson.devDependencies
-                ? Object.keys(packageJson.devDependencies).map(dep =>
-                    toDep(dep, packageJson.devDependencies[dep])
-                )
-                : [];
-            return deps.concat(devDeps);
+    getChildren(element?: Item): Thenable<Item[]> {
+        if (element == null) {
+            return Promise.resolve(this.populate(this.root));
+        }
+
+        if (element.node.type == Type.DIR) {
+            return Promise.resolve(this.populate(element.node));
         } else {
-            return [];
+            return Promise.resolve([]);
         }
     }
 
-    private pathExists(p: string): boolean {
-        try {
-            fs.accessSync(p);
-        } catch (err) {
-            return false;
+    private populate(node: DirNode): Item[] {
+        const subs: Item[] = [];
+        for (const [key, subnode] of Object.entries(node.subnode)) {
+            subs.push(new Item(key, subnode));
         }
-        return true;
+        return subs;
     }
 }
 
-class Dependency extends vscode.TreeItem {
+class Item extends vscode.TreeItem {
     constructor(
         public readonly label: string,
-        private version: string,
-        public readonly collapsibleState: vscode.TreeItemCollapsibleState
+        public node: Node,
     ) {
-        super(label, collapsibleState);
-        this.tooltip = `${this.label}-${this.version}`;
-        this.description = this.version;
-    }
+        super(label, node.type == Type.DIR ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None);
+        if (this.node.type == Type.DIR) {
+            this.tooltip = this.label;
+        } else {
+            this.tooltip = this.node.id;
+            this.description = this.node.id;
 
-    iconPath = {
-        light: path.join(__filename, '..', '..', 'resources', 'light', 'dependency.svg'),
-        dark: path.join(__filename, '..', '..', 'resources', 'dark', 'dependency.svg')
-    };
+            this.iconPath = {
+                light: path.join(path.dirname(__filename), '..', 'media', 'elephant.svg'),
+                dark: path.join(path.dirname(__filename), '..', 'media', 'elephant.svg'),
+            };
+        }
+    }
 }

@@ -1,7 +1,7 @@
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
-import { NodeDependenciesProvider } from './TreeDataProvider';
+import { NodeDependenciesProvider, rootnode, Type } from './TreeDataProvider';
 
 function getWebviewContent() {
     return `<!DOCTYPE html>
@@ -23,7 +23,7 @@ function getWebviewContent() {
 	  </style>
   </head>
   <body>
-  	<iframe src="http://localhost:3000"/>
+  	<iframe src="https://onuw-njaldea.vercel.app/3D"/>
   </body>
   </html>`;
 }
@@ -32,33 +32,53 @@ function getWebviewContent() {
 // your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
     // context.workspaceState.update('panel', null);
-    let panel: null | vscode.WebviewPanel = null
+    let panels: Record<string, vscode.WebviewPanel> = {};
+    let panel: null | vscode.WebviewPanel = null;
 
     let disposable = vscode.commands.registerCommand('freki-cexplorer.helloWorld', () => {
-        // let panel: null | vscode.WebviewPanel = context.workspaceState.get('panel') as vscode.WebviewPanel;
         if (panel == null) {
             panel = vscode.window.createWebviewPanel(
                 'njla',
                 'WTF',
-                vscode.ViewColumn.Active, // Editor column to show the new webview panel in.
+                vscode.ViewColumn.Active,
                 {
                     enableScripts: true,
-                } // Webview options. More on these later.
+                }
             );
             panel.onDidDispose(() => {
                 panel = null;
-                // context.workspaceState.update('panel', null);
             }, null, context.subscriptions);
             panel.webview.html = getWebviewContent();
-            // context.workspaceState.update('panel', panel);
         }
     });
 
-    const tree = new NodeDependenciesProvider("/home/njla/repo/vscode-ext/freki-cexplorer")
-
-    vscode.window.createTreeView('nodeDependencies', {
-        treeDataProvider: tree
+    const treeview = vscode.window.createTreeView('nodeDependencies', {
+        treeDataProvider: new NodeDependenciesProvider(rootnode)
     });
+    treeview.onDidChangeSelection(e => {
+        if (e.selection.length == 1) {
+            const item = e.selection[0];
+            if (item.node.type == Type.FILE) {
+                vscode.window.showInformationMessage(item.node.id);
+                const id = item.node.id;
+                if (!(id in panels)) {
+                    const p = vscode.window.createWebviewPanel(
+                        'njla',
+                        id,
+                        vscode.ViewColumn.Active,
+                        {
+                            enableScripts: true,
+                        }
+                    );
+                    p.onDidDispose(() => {
+                        delete panels[id];
+                    }, null, context.subscriptions);
+                    p.webview.html = getWebviewContent();
+                    panels[id] = p;
+                }
+            }
+        }
+    }, null, context.subscriptions);
 
     context.subscriptions.push(disposable);
 }
